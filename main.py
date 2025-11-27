@@ -1,8 +1,8 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import os
 from datasets import load_dataset
-from peft import LoraConfig, TaskType
-
+from peft import LoraConfig, TaskType, get_peft_model
+from transformers import TrainingArguments, Trainer
 
 if __name__ == "__main__":
     try:
@@ -38,3 +38,40 @@ print(f"Translated text: {translated_text}")
 
 
 peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
+model = get_peft_model(model, peft_config)
+model.print_trainable_parameters()
+
+training_args = TrainingArguments(
+    output_dir="finetuned_model",
+    learning_rate=1e-3,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    num_train_epochs=2,
+    weight_decay=0.01,
+    eval_strategy="epoch",
+    save_strategy="epoch",
+    load_best_model_at_end=True,
+)
+
+tokenized_datasets = ds.map(
+    lambda examples: tokenizer(
+        [text["en"] for text in examples["translation"]],
+        truncation=True,
+        padding="max_length",
+        max_length=128,
+    ),
+    batched=True,
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_datasets["train"],
+    eval_dataset=tokenized_datasets["test"],
+    processing_class=tokenizer,
+    compute_metrics=None,
+)
+
+trainer.train()
+
+model.save_pretrained("output_dir")
