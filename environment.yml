@@ -1,0 +1,23 @@
+name: llm_trad
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch
+  - pytorch-cuda=12.1
+  - jupyterlab
+  - ipykernel
+  - numpy
+  - transformers
+  - datasets
+  - peft
+  - accelerate
+  - evaluate
+  - sacrebleu
+  - sentencepiece
+  - absl-py
+  - nltk
+  - rouge-score
