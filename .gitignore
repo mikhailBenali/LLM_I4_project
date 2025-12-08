@@ -210,3 +210,4 @@ __marimo__/
 
 # Modèles
 finetuned_flan_t5_en_fr/
+baseline_flan_t5_en_fr/
