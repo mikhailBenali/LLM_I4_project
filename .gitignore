@@ -213,3 +213,6 @@ finetuned_flan_t5_en_fr/
 baseline_flan_t5_en_fr/
 finetuned_t5_base_en_fr/
 baseline_t5_base_en_fr/
+
+# Ancien notebook
+test.ipynb
