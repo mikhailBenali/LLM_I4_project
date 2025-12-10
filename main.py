@@ -71,4 +71,6 @@ with col2:
 
 # Pied de page
 st.markdown("---")
+
 st.caption("© 2025 - Modèle de traduction fine-tuné avec LoRA")
+
