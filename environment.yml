@@ -21,3 +21,4 @@ dependencies:
   - absl-py
   - nltk
   - rouge-score
+  - streamlit

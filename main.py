@@ -1,77 +1,74 @@
+import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import os
-from datasets import load_dataset
-from peft import LoraConfig, TaskType, get_peft_model
-from transformers import TrainingArguments, Trainer
+from peft import PeftConfig, PeftModel
+import streamlit as st
 
-if __name__ == "__main__":
-    try:
-        if os.path.exists("./flan-t5-base-model") and os.path.exists("./flan-t5-base-tokenizer"):
-            tokenizer = AutoTokenizer.from_pretrained("./flan-t5-base-tokenizer")
-            print("Tokenizer loaded from local directory.")
-            model = AutoModelForSeq2SeqLM.from_pretrained("./flan-t5-base-model")
-            print("Model loaded from local directory.")
-        else:
-            tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
-            print("Tokenizer loaded successfully.")
-            model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
-            print("Model loaded successfully.")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", DEVICE)
 
-            model.save_pretrained("./flan-t5-base-model")
-            tokenizer.save_pretrained("./flan-t5-base-tokenizer")
-            print("Model and tokenizer saved locally.")
-    except Exception as e:
-        print(f"Couldn't load model or tokenizer : {e}")
+PEFT_DIR = "./finetuned_flan_t5_en_fr"
 
 
+# 1) Lire la config PEFT (LoRA) depuis le dossier local
+peft_config = PeftConfig.from_pretrained(PEFT_DIR, local_files_only=True)
 
-ds = load_dataset("Helsinki-NLP/opus-100", "en-fr")
-sample = ds["train"][0]
-input_text = sample["translation"]["en"]
-print(f"Input text: {input_text}")
-instruction = "Translate English to French: "
-input_text = instruction + input_text
-inputs = tokenizer(input_text, return_tensors="pt")
-outputs = model.generate(**inputs)
-translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-print(f"Translated text: {translated_text}")
-
-
-peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
-model = get_peft_model(model, peft_config)
-model.print_trainable_parameters()
-
-training_args = TrainingArguments(
-    output_dir="finetuned_model",
-    learning_rate=1e-3,
-    per_device_train_batch_size=32,
-    per_device_eval_batch_size=32,
-    num_train_epochs=2,
-    weight_decay=0.01,
-    eval_strategy="epoch",
-    save_strategy="epoch",
-    load_best_model_at_end=True,
+# 2) Charger le modèle de base utilisé pendant le fine-tuning
+base_model = AutoModelForSeq2SeqLM.from_pretrained(
+    peft_config.base_model_name_or_path
 )
 
-tokenized_datasets = ds.map(
-    lambda examples: tokenizer(
-        [text["en"] for text in examples["translation"]],
+# 3) Appliquer les poids LoRA entraînés
+model = PeftModel.from_pretrained(
+    base_model,
+    PEFT_DIR,
+    local_files_only=True,
+)
+
+model.to(DEVICE)
+model.eval()
+
+# 4) Charger le tokenizer
+tokenizer = AutoTokenizer.from_pretrained(peft_config.base_model_name_or_path)
+
+INSTRUCTION = "Translate English to French: "
+
+def translate_sentence(sentence, model, tokenizer, max_length=256):
+    model.eval()
+    inputs = tokenizer(
+        INSTRUCTION + sentence,
+        return_tensors="pt",
         truncation=True,
-        padding="max_length",
-        max_length=128,
-    ),
-    batched=True,
-)
+        max_length=max_length,
+    ).to(DEVICE)
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_datasets["train"],
-    eval_dataset=tokenized_datasets["test"],
-    processing_class=tokenizer,
-    compute_metrics=None,
-)
+    with torch.no_grad():
+        outputs = model.generate(**inputs, max_new_tokens=128)
 
-trainer.train()
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-model.save_pretrained("output_dir")
+# Titre et présentation du modèle
+st.title("Traduction Anglais → Français (LoRA + Flan-T5)")
+st.markdown("""
+Ce modèle a été **fine-tuné** à partir de **Flan-T5** sur les datasets **OPUS** et **Europarl** pour la traduction anglais-français.
+Il utilise une approche **LoRA (Low-Rank Adaptation)** pour une adaptation légère et efficace.
+""")
+
+# Interface utilisateur avec deux colonnes
+col1, col2 = st.columns(2)
+
+with col1:
+    st.header("Anglais")
+    english_text = st.text_area("Entrez votre texte en anglais ici :", height=300, key="english_input")
+
+with col2:
+    st.header("Français")
+    # Affichage du résultat en texte non modifiable
+    if english_text:
+        french_text = translate_sentence(english_text, model, tokenizer)
+        st.text(french_text)  # Texte non modifiable
+    else:
+        st.text("")  # Zone vide si aucun texte n'est saisi
+
+# Pied de page
+st.markdown("---")
+st.caption("© 2025 - Modèle de traduction fine-tuné avec LoRA")
