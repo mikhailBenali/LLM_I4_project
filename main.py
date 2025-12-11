@@ -6,7 +6,7 @@ import streamlit as st
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", DEVICE)
 
-PEFT_DIR = "./finetuned_flan_t5_en_fr"
+PEFT_DIR = "./finetuned_t5_base_en_fr"
 
 
 # 1) Lire la config PEFT (LoRA) depuis le dossier local
@@ -72,5 +72,5 @@ with col2:
 # Pied de page
 st.markdown("---")
 
-st.caption("© 2025 - Modèle de traduction fine-tuné avec LoRA")
+st.caption("© 2025 - Modèle de traduction fine-tuné depuis t5-base avec LoRA")
 
